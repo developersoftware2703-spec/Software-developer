@@ -1,0 +1,19 @@
+{
+  "name": "StudentVentures - Mfumo wa Uwekezaji wa Wanafunzi wa Sekondari",
+  "short_name": "StudentVentures",
+  "description": "Mfumo wa uwekezaji na elimu ya vitendo ya kifedha kwa wanafunzi wa sekondari nchini Tanzania.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#059669",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "finance"]
+}

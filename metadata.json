@@ -1,0 +1,6 @@
+{
+  "name": "StudentVentures - Mfumo wa Uwekezaji wa Wanafunzi",
+  "description": "Mfumo wa uwekezaji na ujasiriamali kwa wanafunzi mashuleni: miradi ya wanafunzi, gawio la faida, mashindano ya mawazo (pitches), ushauri wa walimu, kushiriki mitandaoni, magrupu ya majadiliano, na vyeti vya mafunzo ya fedha.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
