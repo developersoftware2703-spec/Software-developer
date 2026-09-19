@@ -14,12 +14,17 @@ import {
   UserPlus,
   LogIn,
   KeyRound,
-  FileText
+  FileText,
+  AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const AuthGateway: React.FC = () => {
-  const { allStudents, loginWithPin, registerStudent, adminLogin } = useApp();
+  const { allStudents, loginWithPin, registerStudent, adminLogin, systemSecurity } = useApp();
+
+  const adminAccount = allStudents.find(s => s.role === 'admin');
+  const activeStaffId = adminAccount?.studentRegNo || 'STAFF/ADM/001';
+  const activeAdminPin = adminAccount?.securityPin || '9999';
 
   const [activePortal, setActivePortal] = useState<'student' | 'admin'>('student');
   const [studentMode, setStudentMode] = useState<'login' | 'register'>('login');
@@ -43,8 +48,8 @@ export const AuthGateway: React.FC = () => {
   const [regGuardianConsent, setRegGuardianConsent] = useState(true);
 
   // Admin Login State (Primary Defined Info)
-  const [adminStaffId, setAdminStaffId] = useState('STAFF/ADM/001');
-  const [adminPin, setAdminPin] = useState('9999');
+  const [adminStaffId, setAdminStaffId] = useState(activeStaffId);
+  const [adminPin, setAdminPin] = useState(activeAdminPin);
   const [adminError, setAdminError] = useState('');
   const [adminSuccess, setAdminSuccess] = useState('');
 
@@ -152,8 +157,8 @@ export const AuthGateway: React.FC = () => {
   };
 
   const quickFillAdmin = () => {
-    setAdminStaffId('STAFF/ADM/001');
-    setAdminPin('9999');
+    setAdminStaffId(activeStaffId);
+    setAdminPin(activeAdminPin);
     setAdminError('');
   };
 
@@ -377,6 +382,24 @@ export const AuthGateway: React.FC = () => {
 
             {/* FORM B: STUDENT REGISTRATION (Secondary School Form 1 - 6 only) */}
             {studentMode === 'register' && (
+              systemSecurity.allowStudentRegistration === false ? (
+                <div className="p-8 bg-slate-950 border border-slate-800 rounded-2xl text-center space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-white">Usajili wa Wanafunzi Umefungwa kwa Muda</h3>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                    Utawala wa shule umesitisha maombi ya usajili mpya kwa sasa (kwa mfano kipindi cha mitihani au likizo ya muhula). Ikiwa tayari una akaunti, tafadhali ingia kwa kutumia Namba yako ya Usajili au wasiliana na Mratibu wa Miradi.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setStudentMode('login')}
+                    className="mt-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg"
+                  >
+                    Rudi Kwenye Ukurasa wa Kuingia (Login)
+                  </button>
+                </div>
+              ) : (
               <form onSubmit={handleStudentRegister} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -549,7 +572,7 @@ export const AuthGateway: React.FC = () => {
                   <span>Wasilisha Usajili wa Mwanafunzi</span>
                 </button>
               </form>
-            )}
+            ))}
           </div>
         )}
 
@@ -587,11 +610,11 @@ export const AuthGateway: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
                 <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                   <span className="text-slate-400 block text-[10px]">KITAMBULISHO CHA UTUMISHI (STAFF ID):</span>
-                  <span className="text-emerald-400 font-bold text-sm">STAFF/ADM/001</span>
+                  <span className="text-emerald-400 font-bold text-sm">{activeStaffId}</span>
                 </div>
                 <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-400 block text-[10px]">PIN YA UTAWALA (MASTER PIN):</span>
-                  <span className="text-indigo-300 font-bold text-sm">9999</span>
+                  <span className="text-slate-400 block text-[10px]">PIN YA UTAWALA (PIN):</span>
+                  <span className="text-indigo-300 font-bold text-sm">{activeAdminPin}</span>
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 mt-2">

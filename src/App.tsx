@@ -17,7 +17,7 @@ import { AuthModal } from './components/AuthModal';
 import { LockScreenModal } from './components/LockScreenModal';
 import { AuthGateway } from './components/AuthGateway';
 import { InvestmentProject } from './types';
-import { GraduationCap, ShieldCheck, AlertTriangle, Clock, School } from 'lucide-react';
+import { GraduationCap, ShieldCheck, AlertTriangle, Clock, School, Megaphone } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { 
@@ -73,6 +73,16 @@ const MainAppContent: React.FC = () => {
               <AlertTriangle className="w-4 h-4 shrink-0 animate-bounce" />
               <span>
                 <strong>TAHADHARI YA KIUSALAMA:</strong> Mfumo wa fedha umesimamishwa kwa muda na msimamizi ({systemSecurity.freezeReason}). Miamala imesitishwa kwa sasa.
+              </span>
+            </div>
+          )}
+
+          {/* Official Broadcast Announcement Banner */}
+          {systemSecurity.announcementNotice && (
+            <div className="bg-indigo-700 text-white px-4 py-2.5 text-center text-xs font-semibold flex items-center justify-center gap-2 shadow-md border-b border-indigo-800">
+              <Megaphone className="w-4 h-4 shrink-0 text-amber-300 animate-pulse" />
+              <span>
+                <strong>TANGAZO LA SHULE:</strong> {systemSecurity.announcementNotice}
               </span>
             </div>
           )}

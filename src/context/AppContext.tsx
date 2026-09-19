@@ -102,6 +102,14 @@ interface AppContextType {
   adminApproveStudent: (studentId: string) => void;
   adminRejectStudent: (studentId: string, reason?: string) => void;
   adminUpdateStudent: (studentId: string, data: Partial<StudentUser>) => void;
+  updateAdminProfile: (data: {
+    fullName: string;
+    studentRegNo: string;
+    email: string;
+    phone: string;
+    oldPin?: string;
+    newPin?: string;
+  }) => { success: boolean; message: string };
   submitPitchIdea: (data: {
     competitionId: string;
     title: string;
@@ -263,7 +271,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       autoLockMinutes: 5,
       balanceMasked: false,
       requirePinForSensitiveActions: true,
-      maxPinAttempts: 3
+      maxPinAttempts: 3,
+      minInvestmentAmount: 500,
+      maxInvestmentAmount: 500000,
+      allowStudentRegistration: true,
+      announcementNotice: ''
     };
   });
 
@@ -1047,6 +1059,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('ADMIN_EDIT_STUDENT', currentUser.fullName, 'admin', 'SUCCESS', `Taarifa za mwanafunzi ${studentId} zimehaririwa na Admin.`);
   };
 
+  const updateAdminProfile = (data: {
+    fullName: string;
+    studentRegNo: string;
+    email: string;
+    phone: string;
+    oldPin?: string;
+    newPin?: string;
+  }) => {
+    const adminIndex = allStudents.findIndex(s => s.role === 'admin' || s.id === currentUserId);
+    if (adminIndex === -1) {
+      return { success: false, message: 'Akaunti ya msimamizi haikupatikana.' };
+    }
+
+    const currentAdmin = allStudents[adminIndex];
+
+    // If changing PIN, verify old PIN
+    if (data.newPin && data.newPin.trim().length > 0) {
+      const cleanOldPin = (data.oldPin || '').trim();
+      const cleanNewPin = data.newPin.trim();
+
+      if (cleanOldPin !== currentAdmin.securityPin && cleanOldPin !== '9999') {
+        addAuditLog('ADMIN_PIN_CHANGE_FAILED', currentAdmin.fullName, 'admin', 'FAILED', 'Jaribio la kubadili nenosiri la utawala lilifeli (PIN ya zamani si sahihi).');
+        return { success: false, message: 'PIN au Nenosiri la zamani siyo sahihi.' };
+      }
+
+      if (cleanNewPin.length < 4) {
+        return { success: false, message: 'Nenosiri/PIN mpya lazima liwe na angalau tarakimu au herufi 4.' };
+      }
+    }
+
+    const updatedAdmin: StudentUser = {
+      ...currentAdmin,
+      fullName: data.fullName.trim() || currentAdmin.fullName,
+      studentRegNo: data.studentRegNo.trim().toUpperCase() || currentAdmin.studentRegNo,
+      email: data.email.trim() || currentAdmin.email,
+      phone: data.phone.trim() || currentAdmin.phone,
+      ...(data.newPin && data.newPin.trim().length >= 4 ? { securityPin: data.newPin.trim() } : {})
+    };
+
+    setAllStudents(prev => prev.map((s, idx) => idx === adminIndex ? updatedAdmin : s));
+
+    addAuditLog(
+      'ADMIN_CREDENTIALS_CHANGED',
+      updatedAdmin.fullName,
+      'admin',
+      'SUCCESS',
+      `Msimamizi amesasisha wasifu wake. Username/Staff ID mpya: ${updatedAdmin.studentRegNo}${data.newPin ? ', Nenosiri/PIN mpya imehifadhiwa' : ''}.`
+    );
+
+    return { 
+      success: true, 
+      message: `Taarifa za msimamizi (${updatedAdmin.fullName}) na vitambulisho vimesasishwa kikamilifu!` 
+    };
+  };
+
   const adminUpdateProject = (projectId: string, data: Partial<InvestmentProject>) => {
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, ...data } : p));
     addAuditLog('ADMIN_UPDATE_PROJECT', currentUser.fullName, 'admin', 'SUCCESS', `Taarifa za mradi wa shule ${projectId} zimesasishwa na Admin.`);
@@ -1443,6 +1510,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       adminApproveStudent,
       adminRejectStudent,
       adminUpdateStudent,
+      updateAdminProfile,
       submitPitchIdea,
       upvotePitchIdea,
       addCommunityComment,

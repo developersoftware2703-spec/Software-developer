@@ -34,7 +34,14 @@ import {
   Edit,
   Trash2,
   PhoneCall,
-  UserPlus
+  UserPlus,
+  EyeOff,
+  Megaphone,
+  User,
+  Save,
+  Key,
+  RefreshCw,
+  Upload
 } from 'lucide-react';
 
 export const AdminPortal: React.FC = () => {
@@ -64,12 +71,16 @@ export const AdminPortal: React.FC = () => {
     adminApproveStudent,
     adminRejectStudent,
     adminUpdateStudent,
+    updateAdminProfile,
     updatePitchStatus,
     addMentorFeedback,
     systemSecurity,
     updateSystemSecurity,
     verifyTransactionIntegrity,
-    lockScreen
+    lockScreen,
+    exportSystemBackup,
+    importSystemBackup,
+    resetAllData
   } = useApp();
 
   // Student Approvals & Filters
@@ -149,6 +160,30 @@ export const AdminPortal: React.FC = () => {
   const [showFreezeModal, setShowFreezeModal] = useState(false);
   const [freezeReasonInput, setFreezeReasonInput] = useState(systemSecurity.freezeReason);
 
+  // Admin Profile & Credentials Form State
+  const adminAccount = allStudents.find(s => s.role === 'admin') || currentUser;
+  const [adminFullNameInput, setAdminFullNameInput] = useState(adminAccount.fullName || 'Mwalimu Mkuu / Mratibu');
+  const [adminStaffIdInput, setAdminStaffIdInput] = useState(adminAccount.studentRegNo || 'STAFF/ADM/001');
+  const [adminEmailInput, setAdminEmailInput] = useState(adminAccount.email || 'admin@studentventures.ac.tz');
+  const [adminPhoneInput, setAdminPhoneInput] = useState(adminAccount.phone || '+255 700 000 000');
+
+  // Admin PIN change state
+  const [adminCurrentPinInput, setAdminCurrentPinInput] = useState('');
+  const [adminNewPinInput, setAdminNewPinInput] = useState('');
+  const [adminConfirmPinInput, setAdminConfirmPinInput] = useState('');
+  const [showAdminPinSection, setShowAdminPinSection] = useState(false);
+  const [showPinPlaintext, setShowPinPlaintext] = useState(false);
+  const [profileFeedback, setProfileFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Financial Limits and Operational Rules State
+  const [minInvestInput, setMinInvestInput] = useState<number | string>(systemSecurity.minInvestmentAmount ?? 500);
+  const [maxInvestInput, setMaxInvestInput] = useState<number | string>(systemSecurity.maxInvestmentAmount ?? 500000);
+  const [broadcastNoticeInput, setBroadcastNoticeInput] = useState(systemSecurity.announcementNotice ?? '');
+  const [allowRegistrationInput, setAllowRegistrationInput] = useState(systemSecurity.allowStudentRegistration ?? true);
+  const [settingsFeedback, setSettingsFeedback] = useState<string | null>(null);
+  const [backupNotice, setBackupNotice] = useState<string | null>(null);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+
   // Stats
   const pendingTxns = transactions.filter(t => t.status === 'pending');
   const totalStudentBalance = allStudents.reduce((acc, s) => acc + s.balance, 0);
@@ -200,6 +235,106 @@ export const AdminPortal: React.FC = () => {
       freezeReason: freezeReasonInput
     });
     setShowFreezeModal(false);
+  };
+
+  const handleUpdateAdminProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileFeedback(null);
+
+    if (!adminFullNameInput.trim()) {
+      setProfileFeedback({ type: 'error', message: 'Tafadhali weka Jina Kamili la Msimamizi.' });
+      return;
+    }
+    if (!adminStaffIdInput.trim()) {
+      setProfileFeedback({ type: 'error', message: 'Tafadhali weka Kitambulisho cha Utumishi au Username ya kuingilia.' });
+      return;
+    }
+
+    if (showAdminPinSection && adminNewPinInput) {
+      if (adminNewPinInput !== adminConfirmPinInput) {
+        setProfileFeedback({ type: 'error', message: 'PIN au Nenosiri jipya na uthibitisho wake haviendani!' });
+        return;
+      }
+      if (adminNewPinInput.length < 4) {
+        setProfileFeedback({ type: 'error', message: 'Nenosiri/PIN mpya lazima liwe na angalau herufi au tarakimu 4.' });
+        return;
+      }
+      if (!adminCurrentPinInput) {
+        setProfileFeedback({ type: 'error', message: 'Tafadhali weka PIN ya sasa kuthibitisha mabadiliko ya kiusalama.' });
+        return;
+      }
+    }
+
+    const res = updateAdminProfile({
+      fullName: adminFullNameInput.trim(),
+      studentRegNo: adminStaffIdInput.trim().toUpperCase(),
+      email: adminEmailInput.trim(),
+      phone: adminPhoneInput.trim(),
+      oldPin: showAdminPinSection ? adminCurrentPinInput : undefined,
+      newPin: showAdminPinSection && adminNewPinInput ? adminNewPinInput : undefined
+    });
+
+    if (res.success) {
+      setProfileFeedback({ type: 'success', message: res.message });
+      setAdminCurrentPinInput('');
+      setAdminNewPinInput('');
+      setAdminConfirmPinInput('');
+      setShowAdminPinSection(false);
+      setTimeout(() => setProfileFeedback(null), 7000);
+    } else {
+      setProfileFeedback({ type: 'error', message: res.message });
+    }
+  };
+
+  const handleSaveOperationalSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSystemSecurity({
+      minInvestmentAmount: Math.max(100, Number(minInvestInput) || 500),
+      maxInvestmentAmount: Math.max(1000, Number(maxInvestInput) || 500000),
+      announcementNotice: broadcastNoticeInput.trim(),
+      allowStudentRegistration: allowRegistrationInput
+    });
+    setSettingsFeedback('Vigezo vya uendeshaji wa shule na tangazo vimesasishwa kikamilifu!');
+    setTimeout(() => setSettingsFeedback(null), 5000);
+  };
+
+  const handleExportBackup = () => {
+    const jsonStr = exportSystemBackup();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `studentventures-backup-${new Date().toISOString().substring(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setBackupNotice('Faili la chelezo (JSON Backup) limepakuliwa salama kwenye kompyuta yako!');
+    setTimeout(() => setBackupNotice(null), 5000);
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result as string;
+      if (content) {
+        const res = importSystemBackup(content);
+        if (res.success) {
+          setBackupNotice(res.message);
+        } else {
+          setBackupNotice(`Hitilafu: ${res.message}`);
+        }
+        setTimeout(() => setBackupNotice(null), 6000);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleResetData = () => {
+    resetAllData();
+    setShowResetConfirmModal(false);
+    setBackupNotice('Mfumo umeanza upya na data za kiwandani zimerejeshwa.');
+    setTimeout(() => setBackupNotice(null), 6000);
   };
 
   const pendingStudentApprovals = allStudents.filter(s => s.status === 'pending_approval');
@@ -343,7 +478,7 @@ export const AdminPortal: React.FC = () => {
             { id: 'competitions', label: `Mawazo ya Biashara (${pitchIdeas.length})`, icon: Award },
             { id: 'financial-reports', label: 'Taarifa za Bursar', icon: FileText },
             { id: 'security-audit', label: 'Ukaguzi & Ledger', icon: ShieldCheck },
-            { id: 'system-settings', label: 'Mipangilio ya Usalama', icon: Sliders },
+            { id: 'system-settings', label: 'Mipangilio & Wasifu wa Admin', icon: Sliders },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = adminActiveTab === tab.id;
@@ -1295,96 +1430,535 @@ export const AdminPortal: React.FC = () => {
           </div>
         )}
 
-        {/* 8. SYSTEM SETTINGS TAB */}
+        {/* 8. SYSTEM SETTINGS & ADMIN PROFILE TAB */}
         {adminActiveTab === 'system-settings' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6 max-w-3xl mx-auto">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-amber-400" />
-                <span>Mipangilio ya Usalama na Uendeshaji wa Mfumo</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Dhibiti vigezo vya kiusalama vinavyotumika kwa wanafunzi wote na walimu kwenye mfumo huu hai.
-              </p>
+          <div className="space-y-6 max-w-4xl mx-auto">
+            
+            {/* Header / Intro Banner */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] tracking-wider uppercase">
+                    Kitovu cha Msimamizi Mkuu
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]">
+                    Akaunti Hai
+                  </span>
+                </div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  <Sliders className="w-6 h-6 text-amber-400" />
+                  <span>Mipangilio ya Mfumo & Wasifu wa Msimamizi (Admin Settings)</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Badili jina, username (Staff ID), nenosiri/PIN ya kuingilia utawala, vigezo vya uwekezaji, na tangazo la shule.
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 shrink-0">
+                <span className="text-[10px] text-slate-500 block uppercase">Username Hai ya Kuingilia:</span>
+                <span className="text-emerald-400 font-bold text-sm">{adminAccount.studentRegNo}</span>
+              </div>
             </div>
 
-            {/* Emergency Freeze Setting */}
-            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
+            {/* SEHEMU YA 1: WASIFU WA MSIMAMIZI & KUBADILI USERNAME NA NENOSIRI / PIN */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                 <div>
-                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-rose-400" />
-                    <span>Kusimamisha Mfumo wa Fedha kwa Dharura (Emergency Financial Freeze)</span>
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Huzuia mara moja miamala yote ya kuweka fedha, kutoa na kuwekeza iwapo kuna ukaguzi au hitilafu.
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <User className="w-5 h-5 text-indigo-400" />
+                    <span>Wasifu wa Msimamizi, Username & Nenosiri / PIN ya Kuingilia</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Sasisha maelezo yako binafsi na nenosiri la kuingilia kwenye lango kuu la kiutawala.
                   </p>
                 </div>
+              </div>
+
+              {/* Feedback Alert Banner */}
+              {profileFeedback && (
+                <div className={`p-4 rounded-xl text-xs sm:text-sm flex items-center gap-3 ${
+                  profileFeedback.type === 'success' 
+                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' 
+                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
+                }`}>
+                  {profileFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+                  )}
+                  <span className="font-medium">{profileFeedback.message}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleUpdateAdminProfile} className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                      Jina Kamili la Msimamizi / Mwalimu Mkuu *
+                    </label>
+                    <input
+                      id="input-admin-profile-name"
+                      type="text"
+                      required
+                      value={adminFullNameInput}
+                      onChange={(e) => setAdminFullNameInput(e.target.value)}
+                      placeholder="Mfano: Mwl. Emmanuel Nyerere"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                      Username / Kitambulisho cha Utumishi (Staff ID) *
+                    </label>
+                    <input
+                      id="input-admin-profile-username"
+                      type="text"
+                      required
+                      value={adminStaffIdInput}
+                      onChange={(e) => setAdminStaffIdInput(e.target.value)}
+                      placeholder="Mfano: STAFF/ADM/001 au ADMIN_2025"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Hiki ndicho kitambulisho / username utakayotumia wakati wa kuingia kwenye lango la Admin.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                      Barua Pepe Rasmi ya Utawala
+                    </label>
+                    <input
+                      id="input-admin-profile-email"
+                      type="email"
+                      value={adminEmailInput}
+                      onChange={(e) => setAdminEmailInput(e.target.value)}
+                      placeholder="Mfano: bursar@school.ac.tz"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                      Namba ya Simu ya Kazini
+                    </label>
+                    <input
+                      id="input-admin-profile-phone"
+                      type="text"
+                      value={adminPhoneInput}
+                      onChange={(e) => setAdminPhoneInput(e.target.value)}
+                      placeholder="Mfano: +255 754 123 456"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Sehemu ya Kubadili Nenosiri / PIN */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
+                        <KeyRound className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">Kubadili Nenosiri au PIN ya Utawala</h4>
+                        <p className="text-[11px] text-slate-400">
+                          {showAdminPinSection 
+                            ? 'Weka PIN yako ya zamani na uweke PIN/nenosiri jipya hapa chini.'
+                            : 'Bonyeza hapa ikiwa unataka kubadili nenosiri/PIN ya kuingilia utawala.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      id="btn-toggle-admin-pin-section"
+                      onClick={() => {
+                        setShowAdminPinSection(!showAdminPinSection);
+                        setProfileFeedback(null);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                        showAdminPinSection
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          : 'bg-indigo-600/30 text-indigo-300 hover:text-white border border-indigo-500/30'
+                      }`}
+                    >
+                      {showAdminPinSection ? 'Funga Sehemu Hii' : 'Badili PIN / Nenosiri'}
+                    </button>
+                  </div>
+
+                  {showAdminPinSection && (
+                    <div className="pt-3 border-t border-slate-800/80 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            PIN / Nenosiri la Sasa *
+                          </label>
+                          <div className="relative">
+                            <input
+                              id="input-admin-old-pin"
+                              type={showPinPlaintext ? 'text' : 'password'}
+                              value={adminCurrentPinInput}
+                              onChange={(e) => setAdminCurrentPinInput(e.target.value)}
+                              placeholder="PIN ya sasa (chaguo-msingi: 9999)"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            PIN / Nenosiri Jipya *
+                          </label>
+                          <input
+                            id="input-admin-new-pin"
+                            type={showPinPlaintext ? 'text' : 'password'}
+                            value={adminNewPinInput}
+                            onChange={(e) => setAdminNewPinInput(e.target.value)}
+                            placeholder="Angalau herufi/namba 4"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            Thibitisha PIN Mpya *
+                          </label>
+                          <input
+                            id="input-admin-confirm-pin"
+                            type={showPinPlaintext ? 'text' : 'password'}
+                            value={adminConfirmPinInput}
+                            onChange={(e) => setAdminConfirmPinInput(e.target.value)}
+                            placeholder="Rudia PIN mpya"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <button
+                          type="button"
+                          onClick={() => setShowPinPlaintext(!showPinPlaintext)}
+                          className="inline-flex items-center gap-1.5 text-slate-300 hover:text-white"
+                        >
+                          {showPinPlaintext ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          <span>{showPinPlaintext ? 'Ficha Herufi za PIN' : 'Onyesha Herufi za PIN'}</span>
+                        </button>
+                        <span className="text-[11px] text-amber-400/90 font-mono">
+                          PIN ya awali ya mfumo ni 9999
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    id="btn-save-admin-profile"
+                    type="submit"
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-lg shadow-indigo-600/30 flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Hifadhi Wasifu & Vitambulisho vya Admin</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* SEHEMU YA 2: VIGEZO VYA MIRADI, KIMA CHA UWEKEZAJI & TANGAZO LA SHULE */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                    <span>Vigezo vya Miradi, Kima cha Fedha & Tangazo Rasmi la Shule</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Dhibiti kima cha chini/juu cha uwekezaji cha wanafunzi na weka tangazo la msimamizi.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feedback alert for settings */}
+              {settingsFeedback && (
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs sm:text-sm flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+                  <span>{settingsFeedback}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveOperationalSettings} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-200">
+                      Kima cha Chini cha Uwekezaji kwa Mradi (Min Investment)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-500 font-bold">TZS</span>
+                      <input
+                        id="input-min-investment"
+                        type="number"
+                        min={100}
+                        step={100}
+                        value={minInvestInput}
+                        onChange={(e) => setMinInvestInput(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-12 pr-4 py-2 text-xs sm:text-sm text-white font-mono"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Kiwango cha chini kabisa mwanafunzi anachoweza kuwekeza (Chaguo-msingi: TZS 500).
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-200">
+                      Kima cha Juu cha Uwekezaji kwa Mradi (Max Investment)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-500 font-bold">TZS</span>
+                      <input
+                        id="input-max-investment"
+                        type="number"
+                        min={1000}
+                        step={1000}
+                        value={maxInvestInput}
+                        onChange={(e) => setMaxInvestInput(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-12 pr-4 py-2 text-xs sm:text-sm text-white font-mono"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Hukinga wanafunzi wasiwekeze fedha nyingi kupita kiasi bila idhini ya wazazi.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Usajili Mpya wa Wanafunzi Toggle */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      <UserPlus className="w-4 h-4 text-emerald-400" />
+                      <span>Ruhusu Wanafunzi Wapya Kujisajili Wenyeji (Self-Registration):</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {allowRegistrationInput 
+                        ? 'Wanafunzi wa sekondari wanaweza kujisajili kupitia ukurasa wa nje wa mfumo.'
+                        : 'Usajili mpya umefungwa kwa sasa (kwa mfano kipindi cha mitihani au likizo).'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAllowRegistrationInput(!allowRegistrationInput)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                      allowRegistrationInput ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {allowRegistrationInput ? 'IMERUHUSIWA (OPEN)' : 'IMEZUIWA (CLOSED)'}
+                  </button>
+                </div>
+
+                {/* Tangazo Rasmi la Shule / Announcement Banner */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <label className="block text-xs font-semibold text-white flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 text-amber-400" />
+                    <span>Tangazo Rasmi la Shule / Msimamizi (Broadcast Notice):</span>
+                  </label>
+                  <textarea
+                    id="input-broadcast-notice"
+                    rows={2}
+                    value={broadcastNoticeInput}
+                    onChange={(e) => setBroadcastNoticeInput(e.target.value)}
+                    placeholder="Weka ujumbe wa tangazo hapa (Mfano: Malipo ya faida ya mradi wa ufugaji wa kuku yatatolewa Ijumaa saa 8 mchana)..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    Ujumbe huu utaonekana juu kabisa kwenye kurasa zote za wanafunzi mara watakapoingia. Ukiacha wazi, bango la tangazo litaondolewa.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end">
+                  <button
+                    id="btn-save-operational-settings"
+                    type="submit"
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-lg shadow-emerald-600/25 flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Hifadhi Vigezo vya Miradi & Tangazo</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* SEHEMU YA 3: USALAMA WA MFUMO WA FEDHA & KUFUNGA KWA DHARURA */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="border-b border-slate-800 pb-4">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                  <span>Usalama wa Mfumo wa Fedha & Kufunga Skrini (Session & Security Controls)</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Dhibiti uzuiaji wa fedha kwa dharura, majaribio ya nenosiri, na muda wa kujifunga kwa skrini.
+                </p>
+              </div>
+
+              {/* Emergency Freeze Setting */}
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400" />
+                      <span>Kusimamisha Mfumo wa Fedha kwa Dharura (Emergency Financial Freeze)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Huzuia mara moja miamala yote ya kuweka fedha, kutoa na kuwekeza iwapo kuna ukaguzi au hitilafu.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowFreezeModal(true)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                      systemSecurity.isSystemFrozen
+                        ? 'bg-rose-600 text-white hover:bg-rose-500 shadow-lg shadow-rose-600/30'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {systemSecurity.isSystemFrozen ? 'IMESIMAMISHWA (FROZEN)' : 'HAI (NORMAL)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Auto Lock Timer */}
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                <label className="block text-xs font-semibold text-white">
+                  Muda wa Kufunga Skrini Kiotomatiki Mwanafunzi Akikaa Kimya:
+                </label>
+                <select
+                  value={systemSecurity.autoLockMinutes}
+                  onChange={(e) => updateSystemSecurity({ autoLockMinutes: Number(e.target.value) })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value={1}>Dakika 1 (Usalama Mkali Zaidi)</option>
+                  <option value={3}>Dakika 3 (Kiwango cha Kawaida cha Shule)</option>
+                  <option value={5}>Dakika 5 (Inapendekezwa)</option>
+                  <option value={10}>Dakika 10</option>
+                  <option value={0}>Zima Kujifunga (Haipendekezwi)</option>
+                </select>
+                <p className="text-[10px] text-slate-500">
+                  Mwanafunzi asipogusa kifaa kwa muda huu, skrini inajifunga mara moja na kuficha salio lake.
+                </p>
+              </div>
+
+              {/* Max PIN Attempts */}
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                <label className="block text-xs font-semibold text-white">
+                  Majaribio ya Juu Zaidi ya PIN Kabla ya Kufunga Akaunti (Anti-Brute Force):
+                </label>
+                <select
+                  value={systemSecurity.maxPinAttempts}
+                  onChange={(e) => updateSystemSecurity({ maxPinAttempts: Number(e.target.value) })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value={3}>Majaribio 3 (Inapendekezwa kisheria)</option>
+                  <option value={5}>Majaribio 5</option>
+                  <option value={10}>Majaribio 10</option>
+                </select>
+              </div>
+
+              {/* Balance Masking Toggle */}
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold text-white">Kuficha Salio kwa Chaguomsingi (Balance Masking):</h4>
+                  <p className="text-[10px] text-slate-500">Weka alama za ••••••• badala ya namba hadharani ili wanafunzi wasichungulie salio la wenzao.</p>
+                </div>
                 <button
-                  onClick={() => setShowFreezeModal(true)}
+                  onClick={() => updateSystemSecurity({ balanceMasked: !systemSecurity.balanceMasked })}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                    systemSecurity.isSystemFrozen
-                      ? 'bg-rose-600 text-white hover:bg-rose-500'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    systemSecurity.balanceMasked ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {systemSecurity.isSystemFrozen ? 'IMESIMAMISHWA' : 'HAI (NORMAL)'}
+                  {systemSecurity.balanceMasked ? 'Imewashwa (Masked)' : 'Imezimwa (Visible)'}
                 </button>
               </div>
             </div>
 
-            {/* Auto Lock Timer */}
-            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-              <label className="block text-xs font-semibold text-white">
-                Muda wa Kufunga Skrini Kiotomatiki Mwanafunzi Akikaa Kimya:
-              </label>
-              <select
-                value={systemSecurity.autoLockMinutes}
-                onChange={(e) => updateSystemSecurity({ autoLockMinutes: Number(e.target.value) })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500"
-              >
-                <option value={1}>Dakika 1 (Usalama Mkali Zaidi)</option>
-                <option value={3}>Dakika 3 (Kiwango cha Kawaida cha Shule)</option>
-                <option value={5}>Dakika 5 (Inapendekezwa)</option>
-                <option value={10}>Dakika 10</option>
-                <option value={0}>Zima Kujifunga (Haipendekezwi)</option>
-              </select>
-              <p className="text-[10px] text-slate-500">
-                Mwanafunzi asipogusa simu au kompyuta kwa muda huu, skrini inajifunga mara moja na kuficha salio.
-              </p>
-            </div>
-
-            {/* Max PIN Attempts */}
-            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-              <label className="block text-xs font-semibold text-white">
-                Majaribio ya Juu Zaidi ya PIN Kabla ya Kufunga Akaunti (Anti-Brute Force):
-              </label>
-              <select
-                value={systemSecurity.maxPinAttempts}
-                onChange={(e) => updateSystemSecurity({ maxPinAttempts: Number(e.target.value) })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500"
-              >
-                <option value={3}>Majaribio 3 (Inapendekezwa kisheria)</option>
-                <option value={5}>Majaribio 5</option>
-                <option value={10}>Majaribio 10</option>
-              </select>
-            </div>
-
-            {/* Balance Masking Toggle */}
-            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between">
-              <div>
-                <h4 className="text-xs font-semibold text-white">Kuficha Salio kwa Chaguomsingi (Balance Masking):</h4>
-                <p className="text-[10px] text-slate-500">Weka alama za ••••••• badala ya namba hadharani ili wanafunzi wengine wasichungulie salio.</p>
+            {/* SEHEMU YA 4: CHELEZO CHA DATA & UREJESHAJI (BACKUP & RESTORE) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="border-b border-slate-800 pb-4">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Download className="w-5 h-5 text-blue-400" />
+                  <span>Chelezo cha Data, Urejeshaji & Usalama wa Mfumo (Backup & Restore)</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Hifadhi nakala kamili ya miamala, wanafunzi na miradi au fanya urejeshaji salama.
+                </p>
               </div>
-              <button
-                onClick={() => updateSystemSecurity({ balanceMasked: !systemSecurity.balanceMasked })}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                  systemSecurity.balanceMasked ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                {systemSecurity.balanceMasked ? 'Imewashwa (Masked)' : 'Imezimwa (Visible)'}
-              </button>
+
+              {backupNotice && (
+                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-300 text-xs sm:text-sm flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-blue-400" />
+                  <span>{backupNotice}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      <Download className="w-4 h-4 text-emerald-400" />
+                      <span>Pakua Nakala Kamili ya Mfumo (JSON Backup)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Inajumuisha orodha ya wanafunzi wote, leja ya miamala, ripoti za fedha, na miradi ya shule.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExportBackup}
+                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border border-slate-700"
+                  >
+                    <Download className="w-4 h-4 text-emerald-400" />
+                    <span>Pakua Faili la JSON Backup</span>
+                  </button>
+                </div>
+
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-indigo-400" />
+                      <span>Rejesha Mfumo Kutoka Faili la Chelezo</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Pakia faili la JSON lililohifadhiwa awali ili kurejesha rekodi za kifedha.
+                    </p>
+                  </div>
+                  <label className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border border-slate-700 cursor-pointer">
+                    <Upload className="w-4 h-4 text-indigo-400" />
+                    <span>Chagua Faili la Backup (.json)</span>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportBackup}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Factory Reset Safety Button */}
+              <div className="p-4 bg-rose-950/20 border border-rose-900/40 rounded-2xl flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-rose-300">Kuanzisha Upya Mfumo (Factory Reset)</h4>
+                  <p className="text-[10px] text-rose-400/80">Hufuta data za majaribio na kurejesha mfumo katika hali safi ya awali ya shule.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirmModal(true)}
+                  className="px-3.5 py-1.5 bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 rounded-xl text-xs font-bold transition"
+                >
+                  Anzisha Upya
+                </button>
+              </div>
             </div>
+
           </div>
         )}
       </main>
@@ -2031,6 +2605,44 @@ export const AdminPortal: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset All Data Confirmation Modal */}
+      {showResetConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-rose-900/50 rounded-2xl p-6 text-white space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-400 border-b border-slate-800 pb-3">
+              <div className="p-2 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Thibitisha Kuanzisha Upya Mfumo</h3>
+                <p className="text-xs text-rose-300">Tahadhari ya Kiwango cha Juu (Factory Reset)</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Kitendo hiki kitafuta mabadiliko ya majaribio yaliyohifadhiwa kwenye kifaa hiki na kurejesha taarifa za msingi za mfumo (mock data). Je, una uhakika unataka kuendelea?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirmModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+              >
+                Hapana, Ghairi
+              </button>
+              <button
+                type="button"
+                onClick={handleResetData}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-rose-600/30"
+              >
+                Ndio, Anzisha Upya
+              </button>
+            </div>
           </div>
         </div>
       )}

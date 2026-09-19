@@ -8,6 +8,10 @@ export interface SystemSecuritySettings {
   balanceMasked: boolean;
   requirePinForSensitiveActions: boolean;
   maxPinAttempts: number;
+  minInvestmentAmount?: number;
+  maxInvestmentAmount?: number;
+  allowStudentRegistration?: boolean;
+  announcementNotice?: string;
 }
 
 export interface StudentUser {
